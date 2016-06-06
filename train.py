@@ -49,30 +49,45 @@ class trainModel(object):
     
         #define initial states
         self._initial_state = cell.zero_state(batch_size, tf.float32)
+       
+        with tf.variable_scope('rnnlm'):
+            #get softmax
+            w = tf.get_variable("w", [hidden_size, vocab_size])
+            #w = print_out_w(w)
+            b = tf.get_variable("b", [vocab_size])
 
-        with tf.device("/cpu:0"):
-            embedding = tf.get_variable("embedding", [vocab_size, hidden_size])
-            inputs = tf.nn.embedding_lookup(embedding, self._input_data)
+            with tf.device("/cpu:0"):
+                embedding = tf.get_variable("embedding", [vocab_size, hidden_size])
+                inputs = tf.split(1, num_steps, tf.nn.embedding_lookup(embedding, self._input_data))
+                inputs = [tf.squeeze(input_, [1]) for input_ in inputs]
 
-        if training and keep_prob < 1:
-            inputs = tf.nn.dropout(inputs, keep_prob)
+        #if training and keep_prob < 1:
+            #inputs = tf.nn.dropout(inputs, keep_prob)
 
-        outputs = []
-        state = self._initial_state
-        with tf.variable_scope("RNN"):
-            for step in range(num_steps):
-                if step > 0: 
-                    tf.get_variable_scope().reuse_variables()
-                (cell_output, state) = cell(inputs[:, step, :], state)
-                outputs.append(cell_output)
+        def loop(prev, _):
+            prev = tf.add(tf.matmul(prev, w), b)
+            prev_symbol = tf.stop_gradient(tf.argmax(prev, 1))
+            return tf.nn.embedding_lookup(embedding, prev_symbol)
+
+        outputs, last_state = tf.nn.seq2seq.rnn_decoder(inputs, self._initial_state, cell, loop_function=loop if infer else None, scope='rnnlm')
+
+
+        #outputs = []
+        #state = self._initial_state
+        #with tf.variable_scope("RNN"):
+            #for step in range(num_steps):
+                #if step > 0: 
+                    #tf.get_variable_scope().reuse_variables()
+                #(cell_output, state) = cell(inputs[:, step, :], state)
+                #outputs.append(cell_output)
     
         #get output
         output = tf.reshape(tf.concat(1, outputs), [-1, hidden_size])
     
         #get softmax
-        w = tf.get_variable("w", [hidden_size, vocab_size])
+        #w = tf.get_variable("w", [hidden_size, vocab_size])
         #w = print_out_w(w) 
-        b = tf.get_variable("b", [vocab_size])
+        #b = tf.get_variable("b", [vocab_size])
         #b = print_out_b(b)
         logits = tf.add(tf.matmul(output, w) , b)
     
@@ -81,9 +96,9 @@ class trainModel(object):
         loss = tf.nn.seq2seq.sequence_loss_by_example([logits], [reshaped_label], [tf.ones([batch_size * num_steps])])
 
         #compute cost
-        cost = tf.reduce_sum(loss) / batch_size
+        cost = tf.reduce_sum(loss) / batch_size / num_steps
         self._cost = cost
-        self._final_state = state
+        self._final_state = last_state
 
         #add probabilities and store logits
         self._probabilities = tf.nn.softmax(logits)
@@ -110,6 +125,7 @@ class trainModel(object):
     def sample(self, session, index_to_char, char_to_index, prime, num=23):
 
         #print('aaaaaaaaa', type(prime), 'bbbbbb', len(prime))
+        #prime = prime.decode('utf-8')
         prime = '^' + prime.decode('utf-8')
         print('aaaaaaaaa', type(prime), 'bbbbbb', len(prime), 'ccccccc  ', prime)
 
@@ -134,6 +150,12 @@ class trainModel(object):
 
         poem = prime
         char = prime[-1]
+        print('char = ', char)
+
+        def weighted_pick(weights):
+            t = np.cumsum(weights)
+            s = np.sum(weights)
+            return(int(np.searchsorted(t, np.random.rand(1)*s)))
 
         for n in range(num):
             x = np.zeros((1, 1))
@@ -150,26 +172,32 @@ class trainModel(object):
 
             pred = index_to_char[sample]
             
-            if n == 4 or n == 16:
-                pred = index_to_char[3]
-            elif n == 10 or n == 22:
-                pred = index_to_char[4]
+            #if n == 4 or n == 16:
+                #pred = index_to_char[3]
+            #elif n == 10 or n == 22:
+                #pred = index_to_char[4]
             
-            if (n != 4 and n != 16) and pred == index_to_char[3]:
-                index = random.randint(1, vocab_size)
-                pred = index_to_char[index]
+            #if (n != 4 and n != 16) and pred == index_to_char[3]:
+                #index = random.randint(1, vocab_size)
+                #index = weighted_pick(p)
+                #pred = index_to_char[index]
 
-            if (n != 10 and n != 22) and pred == index_to_char[4]:
-                index = random.randint(1, vocab_size)
-                pred = index_to_char[index]
+            #if (n != 10 and n != 22) and pred == index_to_char[4]:
+                #index = random.randint(1, vocab_size)
+                #index = weighted_pick(p)
+                #pred = index_to_char[index]
 
-            if pred == index_to_char[2]:
-                index = random.randint(1, vocab_size)
-                pred = index_to_char[index]
-          
-            if pred == index_to_char[0]:
-                index = random.randint(1, vocab_size)
-                pred = index_to_char[index]
+            #while pred == index_to_char[2] or pred == index_to_char[0]:
+            cnt = 0
+            while pred == '*' or pred == '$':
+            #while pred == '$':
+                 cnt += 1
+                 #index = random.randint(1, vocab_size)
+                 #print('in if st pred = ', pred)
+                 index = weighted_pick(p)
+                 pred = index_to_char[index]
+ 
+            #pred = index_to_char[sample]
 
             #print(pred.encode('utf8'))
 
@@ -177,12 +205,13 @@ class trainModel(object):
 
             char = pred
             poem += pred
+            #print('n = ', n, ', cnt = ', cnt, ', char = ', char)
+            #cnt = 0
 
-        return poem
+        return poem[1:]
 
 def train(session, train_model, data, eval_op, index_to_char, verbose=False):
-    #epoch_size = ((len(data) // batch_size) - 1) // num_steps
-    cost_sum = 0.0
+    cost_sum = 0
     iteration_num = 0
     state = train_model._initial_state.eval()
     step = 0
@@ -191,15 +220,26 @@ def train(session, train_model, data, eval_op, index_to_char, verbose=False):
     #print("data shape ", data.shape[0], data.shape[1])
     
     #get batches from data
-    for i in range(200):
-        for j in range(data.shape[1] - num_steps):
-            x = data[i * batch_size : (i + 1) * batch_size, j : j +  num_steps]
-            y = data[i * batch_size : (i + 1) * batch_size, j + 1 : j + 1 + num_steps]
-           
+    for i in range(100):
+        for j in range(data.shape[1] // num_steps - 1):
+            x = data[i * batch_size : (i + 1) * batch_size, j * num_steps : (j + 1) * num_steps]
+            y = data[i * batch_size : (i + 1) * batch_size, j * num_steps + 1 : (j + 1) * num_steps + 1]
+
+            '''
+            print('x[0]----------')
+            for c in x[0]:
+              print(index_to_char[c])
+            print('y[0]----------')
+            for c in y[0]:
+              print(index_to_char[c])
+            exit()
+            print(x[0].encode('utf8'))
+            print(y[0].encode('utf8'))
+            exit() 
             #print out x y shape
             #print("x shape ", x.shape)
             #print("y shape ", y.shape)
- 
+            '''
             cost, state, probs, logits, _ = session.run([train_model._cost, train_model._final_state, train_model._probabilities, train_model._logits, eval_op], {train_model._input_data: x, train_model._label: y, train_model._initial_state: state})
             cost_sum += cost
             iteration_num += num_steps
@@ -227,8 +267,8 @@ def main(_):
     data = read_poems(char_to_index)
     
     #print(data.shape)
-    train_data = data[1000:147541]
-    val_data = data[0:1000]
+    train_data = data[10000:147541]
+    val_data = data[0:10000]
 
     with tf.Graph().as_default(), tf.Session() as session:
         initializer = tf.random_uniform_initializer(-0.1, 0.1)
