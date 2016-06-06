@@ -7,7 +7,7 @@ import tensorflow as tf
 from reader import getDicts
 from reader import read_poems
 import os
-
+import random
 hidden_size = 200
 num_steps = 20
 batch_size = 20
@@ -105,9 +105,9 @@ class trainModel(object):
         self._train = optimizer.apply_gradients(zipped_value)
 
         self._saver = tf.train.Saver(tf.all_variables())
+    
 
-
-    def sample(self, session, index_to_char, char_to_index, prime, num=40):
+    def sample(self, session, index_to_char, char_to_index, prime, num=23):
 
         #print('aaaaaaaaa', type(prime), 'bbbbbb', len(prime))
         prime = '^' + prime.decode('utf-8')
@@ -125,10 +125,11 @@ class trainModel(object):
             x = np.zeros((1, 1))
             x[0, 0] = char_to_index[char]
 
-            #print(char)
+            #print("char", char)
 
 
             feed = {self._input_data: x, self._initial_state: state}
+            #print("x", x)
             [state] = session.run([self._final_state], feed)
 
         poem = prime
@@ -136,6 +137,7 @@ class trainModel(object):
 
         for n in range(num):
             x = np.zeros((1, 1))
+            x[0, 0] = char_to_index[char]
             feed = {self._input_data: x, self._initial_state: state}
             [probs, state] = session.run([self._probabilities, self._final_state], feed)
             p = probs[0]
@@ -147,6 +149,27 @@ class trainModel(object):
             sample = np.argmax(p)
 
             pred = index_to_char[sample]
+            
+            if n == 4 or n == 16:
+                pred = index_to_char[3]
+            elif n == 10 or n == 22:
+                pred = index_to_char[4]
+            
+            if (n != 4 and n != 16) and pred == index_to_char[3]:
+                index = random.randint(1, vocab_size)
+                pred = index_to_char[index]
+
+            if (n != 10 and n != 22) and pred == index_to_char[4]:
+                index = random.randint(1, vocab_size)
+                pred = index_to_char[index]
+
+            if pred == index_to_char[2]:
+                index = random.randint(1, vocab_size)
+                pred = index_to_char[index]
+          
+            if pred == index_to_char[0]:
+                index = random.randint(1, vocab_size)
+                pred = index_to_char[index]
 
             #print(pred.encode('utf8'))
 
@@ -168,7 +191,7 @@ def train(session, train_model, data, eval_op, index_to_char, verbose=False):
     #print("data shape ", data.shape[0], data.shape[1])
     
     #get batches from data
-    for i in range(20):
+    for i in range(200):
         for j in range(data.shape[1] - num_steps):
             x = data[i * batch_size : (i + 1) * batch_size, j : j +  num_steps]
             y = data[i * batch_size : (i + 1) * batch_size, j + 1 : j + 1 + num_steps]
