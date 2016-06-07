@@ -221,7 +221,7 @@ def train(session, train_model, data, eval_op, index_to_char, verbose=False):
     #print("data shape ", data.shape[0], data.shape[1])
     
     #get batches from data
-    for i in range(500):
+    for i in range(200):
         for j in range(data.shape[1] - num_steps):
             x = data[i * batch_size : (i + 1) * batch_size, j : j + num_steps]
             y = data[i * batch_size : (i + 1) * batch_size, j + 1 : j + 1 + num_steps]
@@ -287,7 +287,7 @@ def main(_):
 
         print("-------")
 
-        for i in range(2):
+        for i in range(1):
             #let learning rate decay 
             learning_decay = lr_decay ** max(i, 0.0)
             tf.assign(t_train._learning_rate, learning_decay).eval()
