@@ -6,7 +6,8 @@ import os
 import numpy as np
 import tensorflow as tf
 
-poem_files = ["jueju5.txt", "jueju7.txt", "lvshi5.txt", "lvshi7.txt"]
+#poem_files = ["jueju5.txt", "jueju7.txt", "lvshi5.txt", "lvshi7.txt"]
+poem_files = ["lvshi7.txt"]
 index_chars_file = 'index_chars.txt'
 path = './data/'
 POEM_LEN = 66

@@ -122,7 +122,7 @@ class trainModel(object):
         self._saver = tf.train.Saver(tf.all_variables())
     
 
-    def sample(self, session, index_to_char, char_to_index, prime, num=23):
+    def sample(self, session, index_to_char, char_to_index, prime, num=31):
 
         #print('aaaaaaaaa', type(prime), 'bbbbbb', len(prime))
         #prime = prime.decode('utf-8')
@@ -136,7 +136,7 @@ class trainModel(object):
 
         #prime = prime.encode('utf-8')
 
-        for char in prime:
+        for char in prime[:-1]:
             #char = char.decode('utf-8')
             x = np.zeros((1, 1))
             x[0, 0] = char_to_index[char]
@@ -196,8 +196,9 @@ class trainModel(object):
                  #print('in if st pred = ', pred)
                  index = weighted_pick(p)
                  pred = index_to_char[index]
- 
-            #pred = index_to_char[sample]
+  
+                 #print("count: ", cnt)
+            #pred# = index_to_char[sample]
 
             #print(pred.encode('utf8'))
 
@@ -205,8 +206,8 @@ class trainModel(object):
 
             char = pred
             poem += pred
-            #print('n = ', n, ', cnt = ', cnt, ', char = ', char)
-            #cnt = 0
+            print('n = ', n, ', cnt = ', cnt, ', char = ', char)
+            cnt = 0
 
         return poem[1:]
 
@@ -220,10 +221,10 @@ def train(session, train_model, data, eval_op, index_to_char, verbose=False):
     #print("data shape ", data.shape[0], data.shape[1])
     
     #get batches from data
-    for i in range(100):
-        for j in range(data.shape[1] // num_steps - 1):
-            x = data[i * batch_size : (i + 1) * batch_size, j * num_steps : (j + 1) * num_steps]
-            y = data[i * batch_size : (i + 1) * batch_size, j * num_steps + 1 : (j + 1) * num_steps + 1]
+    for i in range(500):
+        for j in range(data.shape[1] - num_steps):
+            x = data[i * batch_size : (i + 1) * batch_size, j : j + num_steps]
+            y = data[i * batch_size : (i + 1) * batch_size, j + 1 : j + 1 + num_steps]
 
             '''
             print('x[0]----------')
@@ -266,8 +267,8 @@ def main(_):
     index_to_char, char_to_index = getDicts(vocab_size)
     data = read_poems(char_to_index)
     
-    #print(data.shape)
-    train_data = data[10000:147541]
+    print(data.shape)
+    train_data = data
     val_data = data[0:10000]
 
     with tf.Graph().as_default(), tf.Session() as session:
@@ -286,7 +287,7 @@ def main(_):
 
         print("-------")
 
-        for i in range(1):
+        for i in range(2):
             #let learning rate decay 
             learning_decay = lr_decay ** max(i, 0.0)
             tf.assign(t_train._learning_rate, learning_decay).eval()
@@ -298,8 +299,8 @@ def main(_):
             t_train._saver.save(session, checkpoint_path, global_step=i)
             #print("have saved checkpoint")
             #validate
-            val_perplexity = train(session, t_valid, val_data, tf.no_op(), index_to_char)
-            print("val_perplexity: ", val_perplexity)
+            #val_perplexity = train(session, t_valid, val_data, tf.no_op(), index_to_char)
+            #print("val_perplexity: ", val_perplexity)
 
 
 if __name__ == "__main__":
